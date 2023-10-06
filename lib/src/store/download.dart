@@ -7,8 +7,6 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_background/flutter_background.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_map/plugin_api.dart';
 import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
@@ -19,7 +17,6 @@ import '../bulk_download/downloader.dart';
 import '../bulk_download/internal_timing_progress_management.dart';
 import '../bulk_download/tile_loops.dart';
 import '../bulk_download/tile_progress.dart';
-import '../internal/exts.dart';
 import '../internal/tile_provider.dart';
 import '../regions/downloadable_region.dart';
 import '../settings/tile_provider_settings.dart';
@@ -120,116 +117,6 @@ class DownloadManagement {
   /// * `backgroundNotificationIcon`: set to an `AndroidResource` to override the default icon ('@mipmap/ic_launcher': the app's launcher icon)
   /// * `backgroundNotificationTitle`: set to a `String` to override the default title
   /// * `backgroundNotificationText`: set to a `String` to override the default body text
-  Future<void> startBackground({
-    required DownloadableRegion region,
-    FMTCTileProviderSettings? tileProviderSettings,
-    bool disableRecovery = false,
-    String backgroundNotificationTitle = 'App Running In Background',
-    String backgroundNotificationText =
-        "Hide this notification by holding down and opening the notification's settings. Then disable this notification only.",
-    AndroidResource? backgroundNotificationIcon,
-    bool showProgressNotification = true,
-    AndroidNotificationDetails? progressNotificationConfig,
-    String progressNotificationIcon = '@mipmap/ic_notification_icon',
-    String progressNotificationTitle = 'Downloading Map...',
-    String Function(DownloadProgress)? progressNotificationBody,
-  }) async {
-    if (Platform.isAndroid) {
-      final bool initSuccess = await FlutterBackground.initialize(
-        androidConfig: FlutterBackgroundAndroidConfig(
-          notificationTitle: backgroundNotificationTitle,
-          notificationText: backgroundNotificationText,
-          notificationIcon: backgroundNotificationIcon ??
-              const AndroidResource(name: 'ic_launcher', defType: 'mipmap'),
-        ),
-      );
-      if (!initSuccess) {
-        throw StateError(
-          'Failed to acquire the necessary permissions to run the background process',
-        );
-      }
-
-      final bool startSuccess =
-          await FlutterBackground.enableBackgroundExecution();
-      if (!startSuccess) {
-        throw StateError('Failed to start the background process');
-      }
-
-      final notification = FlutterLocalNotificationsPlugin();
-      await notification.initialize(
-        InitializationSettings(
-          android: AndroidInitializationSettings(progressNotificationIcon),
-        ),
-      );
-      await notification
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()!
-          .requestPermission();
-
-      final Stream<DownloadProgress> downloadStream = startForeground(
-        region: region,
-        tileProviderSettings: tileProviderSettings,
-        disableRecovery: disableRecovery,
-      ).asBroadcastStream();
-      if (await downloadStream.isEmpty) return cancel();
-
-      final AndroidNotificationDetails androidNotificationDetails =
-          progressNotificationConfig?.copyWith(
-                channelId: 'FMTCMapDownloader',
-                ongoing: true,
-              ) ??
-              const AndroidNotificationDetails(
-                'FMTCMapDownloader',
-                'Map Download Progress',
-                channelDescription:
-                    'Displays progress notifications to inform the user about the progress of their map download',
-                showProgress: true,
-                visibility: NotificationVisibility.public,
-                subText: 'Map Downloader',
-                importance: Importance.low,
-                priority: Priority.low,
-                showWhen: false,
-                playSound: false,
-                enableVibration: false,
-                onlyAlertOnce: true,
-                autoCancel: false,
-                ongoing: true,
-              );
-
-      late final StreamSubscription<DownloadProgress> subscription;
-
-      subscription = downloadStream.listen(
-        (event) async {
-          if (showProgressNotification) {
-            await notification.show(
-              0,
-              progressNotificationTitle,
-              progressNotificationBody == null
-                  ? '${event.attemptedTiles}/${event.maxTiles} (${event.percentageProgress.round()}%)'
-                  : progressNotificationBody(event),
-              NotificationDetails(
-                android: androidNotificationDetails.copyWith(
-                  maxProgress: event.maxTiles,
-                  progress: event.attemptedTiles,
-                ),
-              ),
-            );
-          }
-        },
-        onDone: () async {
-          if (showProgressNotification) await notification.cancel(0);
-          await subscription.cancel();
-          await cancel();
-        },
-      );
-    } else {
-      throw PlatformException(
-        code: 'notAndroid',
-        message:
-            'The background download feature is only available on Android due to internal limitations.',
-      );
-    }
-  }
 
   /// Check approximately how many downloadable tiles are within a specified [DownloadableRegion]
   ///
@@ -249,10 +136,6 @@ class DownloadManagement {
 
     if (_recoveryId != null) {
       await _storeDirectory.rootDirectory.recovery.cancel(_recoveryId!);
-    }
-
-    if (FlutterBackground.isBackgroundExecutionEnabled) {
-      await FlutterBackground.disableBackgroundExecution();
     }
   }
 
