@@ -12,10 +12,6 @@ library flutter_map_tile_caching;
 
 export 'dart:io' show Directory, File;
 
-// export 'package:flutter_background/flutter_background.dart'
-//     show AndroidResource;
-export 'package:flutter_local_notifications/flutter_local_notifications.dart'
-    show AndroidNotificationDetails;
 export 'package:watcher/watcher.dart' show ChangeType;
 
 export 'src/bulk_download/download_progress.dart';

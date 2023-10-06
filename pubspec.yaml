@@ -29,7 +29,6 @@ dependencies:
   flutter:
     sdk: flutter
 
-  flutter_local_notifications: ^14.0.0+1
   flutter_map: ^5.0.0
   http: ^1.0.0
   ini: ^2.1.0
